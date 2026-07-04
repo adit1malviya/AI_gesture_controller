@@ -7,7 +7,7 @@ print("Program started")
 mp_hands = mp.solutions.hands
 mp_draw = mp.solutions.drawing_utils
 
-hands = mp_hands.Hands()
+hands = mp_hands.Hands(max_num_hands=1)
 
 print("MediaPipe initialized")
 
@@ -35,6 +35,8 @@ with open("dataset/gesture_data.csv", "a", newline="") as f:
         if not success:
             print("Failed to read frame")
             break
+
+        frame = cv2.flip(frame, 1)
 
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 

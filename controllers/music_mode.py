@@ -22,6 +22,8 @@ def handle_music_mode(
     print("Cooldown:", music_cooldown)
     print("==============================")
 
+    # Mode-locking policy: MUSIC mode never exits via gesture,
+    # only by quitting the program (Q). This is always False.
     exit_mode = False
 
     # ==========================
@@ -98,55 +100,6 @@ def handle_music_mode(
                     music_cooldown_start = (
                         time.time()
                     )
-
-        # ==========================
-        # V SIGN
-        # ==========================
-
-        elif predicted_gesture == "V_SIGN":
-
-            print(
-                "V SIGN DETECTED"
-            )
-
-            if (
-                selected_music_action
-                != "EXIT_MUSIC"
-            ):
-
-                print(
-                    "Starting Exit Timer"
-                )
-
-                selected_music_action = (
-                    "EXIT_MUSIC"
-                )
-
-                music_action_start_time = (
-                    time.time()
-                )
-
-            else:
-
-                elapsed = (
-                    time.time()
-                    - music_action_start_time
-                )
-
-                print(
-                    f"Exit Hold = {elapsed:.2f}s"
-                )
-
-                if elapsed >= HOLD_TIME:
-
-                    print(
-                        "EXITING MUSIC MODE"
-                    )
-
-                    exit_mode = True
-
-                    selected_music_action = None
-                    music_action_start_time = None
 
         # ==========================
         # OTHER GESTURES

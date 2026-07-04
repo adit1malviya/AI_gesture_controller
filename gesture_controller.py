@@ -142,9 +142,6 @@ last_volume_time = 0
 # ==========================
 # Single-Hand Close Window Settings (MUSIC mode)
 # ==========================
-# 3 fingers (single hand), held steady, closes the currently
-# focused window (YouTube tab / music app) via Alt+F4.
-# MUSIC mode itself stays locked afterward.
 
 MUSIC_CLOSE_HOLD_FRAMES = 8
 MUSIC_CLOSE_COOLDOWN = 1.5
@@ -451,8 +448,6 @@ while True:
         # --------------------------
         # Single-hand: volume up / down / close window
         # --------------------------
-        # Only runs when exactly one hand is visible, so none of
-        # these can overlap with the two-hand track-switch gesture.
 
         if len(hand_finger_counts) == 1:
 
@@ -637,7 +632,7 @@ while True:
 
     cv2.putText(
         frame,
-        "R = Reset | Q = Quit",
+        "Q = Quit",
         (20, 280),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.7,
@@ -652,26 +647,7 @@ while True:
 
     key = cv2.waitKey(1) & 0xFF
 
-    if key == ord('r'):
-
-        mode = "NONE"
-        mode_locked = False
-
-        selected_app = None
-        selection_start_time = None
-
-        selected_music_action = None
-        music_action_start_time = None
-
-        scroll_mode = False
-
-        gesture_buffer.clear()
-        closed_fist_buffer.clear()
-        track_state_buffer.clear()
-        volume_finger_buffer.clear()
-        music_close_buffer.clear()
-
-    elif key == ord('q'):
+    if key == ord('q'):
         break
 
 cap.release()
