@@ -15,12 +15,15 @@ from controllers.music_mode import (
 
 from actions.app_controller import (
     scroll_up,
-    scroll_down
+    scroll_down,
+    close_app
 )
 
 from actions.music_controller import (
     next_track,
-    previous_track
+    previous_track,
+    volume_up,
+    volume_down
 )
 
 # ==========================
@@ -72,7 +75,7 @@ def get_stable_gesture(buffer, new_gesture):
 
 
 # ==========================
-# Closed-Fist Smoothing (for APP mode exit)
+# Closed-Fist Smoothing (for CLOSE APP action, APP mode)
 # ==========================
 
 CLOSED_FIST_HOLD_FRAMES = 8
@@ -119,16 +122,35 @@ last_scroll_time = 0
 # ==========================
 # Two-Hand Track Settings (MUSIC mode)
 # ==========================
-# Requires the pose to be held for TRACK_HOLD_FRAMES consecutive
-# frames before triggering, then a cooldown before it can fire again.
-# This stops a brief hand-crossing motion from accidentally
-# switching tracks.
 
 TRACK_HOLD_FRAMES = 6
 TRACK_COOLDOWN = 1.2
 
 track_state_buffer = deque(maxlen=TRACK_HOLD_FRAMES)
 last_track_time = 0
+
+# ==========================
+# Single-Hand Volume Settings (MUSIC mode)
+# ==========================
+
+VOLUME_HOLD_FRAMES = 4
+VOLUME_COOLDOWN = 0.4
+
+volume_finger_buffer = deque(maxlen=VOLUME_HOLD_FRAMES)
+last_volume_time = 0
+
+# ==========================
+# Single-Hand Close Window Settings (MUSIC mode)
+# ==========================
+# 3 fingers (single hand), held steady, closes the currently
+# focused window (YouTube tab / music app) via Alt+F4.
+# MUSIC mode itself stays locked afterward.
+
+MUSIC_CLOSE_HOLD_FRAMES = 8
+MUSIC_CLOSE_COOLDOWN = 1.5
+
+music_close_buffer = deque(maxlen=MUSIC_CLOSE_HOLD_FRAMES)
+last_music_close_time = 0
 
 # ==========================
 # State Variables
@@ -258,6 +280,9 @@ while True:
                 # ==========================
                 # Mode Selection
                 # ==========================
+                # Only two modes exist: APP and MUSIC. Once
+                # mode_locked is True, this block never runs
+                # again for the rest of the program's lifetime.
 
                 if not mode_locked:
 
@@ -275,18 +300,13 @@ while True:
 
                         print("MUSIC MODE")
 
-                    elif stable_gesture == "OPEN_PALM":
-
-                        mode = "EDIT"
-                        mode_locked = True
-
-                        print("EDIT MODE")
-
     else:
 
         gesture_buffer.clear()
         closed_fist_buffer.clear()
         track_state_buffer.clear()
+        volume_finger_buffer.clear()
+        music_close_buffer.clear()
 
     # ==========================
     # APP MODE
@@ -300,17 +320,16 @@ while True:
 
         closed_fist_buffer.append(is_closed_fist)
 
-        stable_exit = (
+        stable_close = (
             len(closed_fist_buffer) == closed_fist_buffer.maxlen
             and all(closed_fist_buffer)
         )
 
-        if stable_exit:
+        if stable_close and scroll_mode:
 
-            print("EXIT APP MODE")
+            print("CLOSE APP")
 
-            mode = "NONE"
-            mode_locked = False
+            close_app()
 
             scroll_mode = False
 
@@ -320,8 +339,6 @@ while True:
             closed_fist_buffer.clear()
 
         elif scroll_mode:
-
-            # Two-hand scroll gesture
 
             two_hand_state = get_two_hand_state(
                 hand_finger_counts
@@ -347,8 +364,6 @@ while True:
                 last_scroll_time = now
 
         else:
-
-            # Still choosing which app to open
 
             (
                 selected_app,
@@ -379,13 +394,15 @@ while True:
 
     elif mode == "MUSIC":
 
+        now = time.time()
+
+        # --------------------------
+        # Two-hand: next / previous track
+        # --------------------------
+
         two_hand_state = get_two_hand_state(
             hand_finger_counts
         )
-
-        # Only BOTH_OPEN / BOTH_CLOSED matter here — a single hand
-        # plus nothing (or a stray second hand) should fall through
-        # to normal single-hand play/pause / exit handling below.
 
         track_state_buffer.append(two_hand_state)
 
@@ -400,8 +417,6 @@ while True:
                 "BOTH_CLOSED"
             )
         )
-
-        now = time.time()
 
         track_triggered = False
 
@@ -428,12 +443,86 @@ while True:
 
             last_track_time = now
 
-            # Reset single-hand play/pause timer so it doesn't
-            # also fire from the same open-palm pose.
             selected_music_action = None
             music_action_start_time = None
 
             track_state_buffer.clear()
+
+        # --------------------------
+        # Single-hand: volume up / down / close window
+        # --------------------------
+        # Only runs when exactly one hand is visible, so none of
+        # these can overlap with the two-hand track-switch gesture.
+
+        if len(hand_finger_counts) == 1:
+
+            single_fc = hand_finger_counts[0]
+
+            # -- Volume (1 or 2 fingers) --
+
+            volume_finger_buffer.append(single_fc)
+
+            stable_volume_count = (
+                len(volume_finger_buffer)
+                == volume_finger_buffer.maxlen
+                and all(
+                    c == volume_finger_buffer[0]
+                    for c in volume_finger_buffer
+                )
+            )
+
+            if (
+                stable_volume_count
+                and volume_finger_buffer[0] in (1, 2)
+                and (now - last_volume_time) >= VOLUME_COOLDOWN
+            ):
+
+                if volume_finger_buffer[0] == 1:
+
+                    print("VOLUME UP (1 finger)")
+                    volume_up()
+
+                elif volume_finger_buffer[0] == 2:
+
+                    print("VOLUME DOWN (2 fingers)")
+                    volume_down()
+
+                last_volume_time = now
+
+            # -- Close window (3 fingers) --
+
+            is_three_fingers = (single_fc == 3)
+
+            music_close_buffer.append(is_three_fingers)
+
+            stable_music_close = (
+                len(music_close_buffer)
+                == music_close_buffer.maxlen
+                and all(music_close_buffer)
+            )
+
+            if (
+                stable_music_close
+                and (now - last_music_close_time)
+                >= MUSIC_CLOSE_COOLDOWN
+            ):
+
+                print("CLOSE WINDOW (3 fingers, music mode)")
+
+                close_app()
+
+                last_music_close_time = now
+
+                music_close_buffer.clear()
+
+        else:
+
+            volume_finger_buffer.clear()
+            music_close_buffer.clear()
+
+        # --------------------------
+        # Fallback: play / pause (single-hand ML gesture)
+        # --------------------------
 
         if not track_triggered:
 
@@ -458,17 +547,9 @@ while True:
                 music_cooldown_start
             )
 
-            if exit_mode:
-
-                print(
-                    "Exited Music Mode"
-                )
-
-                mode = "NONE"
-                mode_locked = False
-
-                selected_music_action = None
-                music_action_start_time = None
+            # Mode-locking policy: gestures never exit a mode once
+            # entered. exit_mode is intentionally ignored — only
+            # quitting the program (Q) ends a session.
 
     # ==========================
     # Display
@@ -587,6 +668,8 @@ while True:
         gesture_buffer.clear()
         closed_fist_buffer.clear()
         track_state_buffer.clear()
+        volume_finger_buffer.clear()
+        music_close_buffer.clear()
 
     elif key == ord('q'):
         break

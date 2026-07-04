@@ -30,3 +30,6 @@ def open_word():
 
 def open_vscode():
     subprocess.Popen("code")
+
+def close_app():
+    pyautogui.hotkey('alt', 'f4')
